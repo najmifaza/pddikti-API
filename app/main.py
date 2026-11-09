@@ -1,10 +1,16 @@
-"""Entry point: reads env config only, then builds the app (port of main.go)."""
+"""Entry point: membaca konfigurasi dari env, lalu membangun aplikasi."""
 
 from __future__ import annotations
 
 import os
 
+from dotenv import load_dotenv
+
 from . import api, pddikti
+
+# .env in the working directory, for the settings the README documents. Real
+# environment variables win, so systemd/docker still override the file.
+load_dotenv()
 
 
 def _env(key: str, default: str) -> str:

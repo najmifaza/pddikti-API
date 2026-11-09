@@ -1,1 +1,1 @@
-"""FastAPI port of auth-pddikti (see ../internal for the Go reference)."""
+"""Paket auth-pddikti: client upstream PDDIKTI dan lapisan HTTP FastAPI."""

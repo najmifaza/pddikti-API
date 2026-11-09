@@ -1,4 +1,4 @@
-"""HTTP client for the PDDIKTI upstream (port of internal/pddikti)."""
+"""HTTP client untuk upstream PDDIKTI."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ HEADERS = {
     "Accept": "application/json, text/plain, */*",
 }
 
-# Fields the API emits, mirroring the Go structs. Anything else upstream sends is dropped.
+# Fields the API emits. Anything else upstream sends is dropped.
 SEARCH_FIELDS = ("id", "nama", "nim", "nama_pt", "sinkatan_pt", "nama_prodi")
 DETAIL_FIELDS = (
     "id",
@@ -230,7 +230,7 @@ def _matches_campus(item: dict[str, Any], campus: str) -> bool:
 
 
 def _pick(item: Any, fields: tuple[str, ...]) -> dict[str, str]:
-    """Keep the declared fields only, the way Go unmarshals into a struct."""
+    """Keep the declared fields only, dropping everything else upstream sends."""
     row = item if isinstance(item, dict) else {}
     return {name: _str(row.get(name)) for name in fields}
 

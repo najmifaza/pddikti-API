@@ -1,4 +1,4 @@
-"""FastAPI routes, guards and error mapping (port of internal/server)."""
+"""Route FastAPI, guard, dan pemetaan error."""
 
 from __future__ import annotations
 
@@ -79,9 +79,9 @@ class Config:
 class IPRateLimiter:
     """Per-IP token bucket. Idle entries are swept so memory stays bounded.
 
-    State is per process, exactly like the Go service's in-process map: running
-    several uvicorn workers gives each its own counter. The lock guards the
-    threadpool path (a sync endpoint), not the event loop.
+    State is per process: running several uvicorn workers gives each its own
+    counter. The lock guards the threadpool path (a sync endpoint), not the
+    event loop.
     """
 
     def __init__(self, per_minute: int, now: Callable[[], float] = time.monotonic) -> None:
@@ -263,11 +263,12 @@ def cap_rows(raw: bytes, max_rows: int) -> bytes:
 
 
 def client_ip(request: Request, networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network]) -> str:
-    """Connection IP. X-Forwarded-For is only believed when the peer is a trusted proxy."""
+    """Connection IP. X-Forwarded-For / X-Real-IP only believed behind a trusted proxy."""
     host = request.client.host if request.client else ""
     if not networks or not _in_networks(host, networks):
         return host
-    forwarded = request.headers.get("x-forwarded-for", "")
+    forward_headers = ("x-forwarded-for", "x-real-ip")
+    forwarded = next((request.headers.get(h, "") for h in forward_headers if request.headers.get(h)), "")
     parts = [part.strip() for part in forwarded.split(",") if part.strip()]
     for part in reversed(parts):
         if not _in_networks(part, networks):

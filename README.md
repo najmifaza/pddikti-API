@@ -1,6 +1,6 @@
 # auth-pddikti (FastAPI)
 
-Microservice bridge dan HTTP client Python/FastAPI untuk verifikasi identitas dan status aktif mahasiswa Indonesia berbasis PDDIKTI (Kemdiktisaintek RI). Port 1:1 dari versi Go-nya (`akbarhann/auth-pddikti`): path, bentuk respons, kode error, dan variabel environment identik.
+Microservice bridge dan HTTP client Python/FastAPI untuk verifikasi identitas dan status aktif mahasiswa Indonesia berbasis PDDIKTI (Kemdiktisaintek RI). Path, bentuk respons, kode error, dan variabel environment ditetapkan oleh kontrak di dalam repo ini, sehingga klien bisa berpegang pada `code` dan struktur field yang stabil.
 
 Layanan ini berfungsi sebagai lapisan verifikasi data (student verification / e-KYC layer) yang dirancang untuk melengkapi alur autentikasi aplikasi utama. Sistem memvalidasi keaktifan akademik, menarik identitas resmi (nama lengkap, NIM, perguruan tinggi, program studi, jenjang, status semester), dan menyediakan pencarian sivitas akademika secara on-demand tanpa scraping data massal.
 
@@ -11,7 +11,7 @@ Layanan ini berfungsi sebagai lapisan verifikasi data (student verification / e-
 | `app/pddikti.py` | client upstream (`httpx`), sentinel error, aturan exact-match NIM |
 | `app/api.py` | route, guard API key + rate limit per IP, error mapping, mirror route, cap bulk |
 | `app/main.py` | pembacaan env dan wiring aplikasi |
-| `tests/test_api.py` | test parity, assert-based, tanpa dependency tambahan |
+| `tests/test_api.py` | test kontrak API, assert-based, tanpa dependency tambahan |
 
 ## Karakteristik Teknis
 
@@ -42,11 +42,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8090
 
 Di balik Nginx, teruskan `X-Forwarded-For` atau `X-Real-IP` dan isi `TRUSTED_PROXIES` agar rate limit membaca IP klien yang benar, bukan IP proxy.
 
-Rate limit disimpan per proses, jadi jalankan uvicorn dengan satu worker (`--workers 1`, default). Dengan beberapa worker, setiap worker punya hitungannya sendiri — sama seperti versi Go yang menyimpan hitungan di memori proses.
+Rate limit disimpan per proses, jadi jalankan uvicorn dengan satu worker (`--workers 1`, default). Dengan beberapa worker, setiap worker punya hitungannya sendiri karena hitungan disimpan di memori proses.
 
 ### Konfigurasi
 
-Semua variabel opsional. Contoh lengkap ada di [.env.example](.env.example).
+Semua variabel opsional. Contoh lengkap ada di [.env.example](.env.example). File `.env` di direktori kerja dimuat otomatis; variabel environment yang sudah ada (systemd, docker) menang atas isi file.
 
 | Variabel | Default | Keterangan |
 |---|---|---|
@@ -83,7 +83,7 @@ Cek live terhadap PDDIKTI asli dipisah dan hanya berjalan bila environment diisi
 PDDIKTI_TEST_NIM=<nim-anda> PDDIKTI_TEST_KAMPUS=<nama-pt> python tests/live_test.py
 ```
 
-Test ini menjaga parity dengan versi Go: exact-match NIM, re-check detail, kandidat ambigu, tabel error mapping, API key, rate limit, CORS, passthrough mirror route, whitelist path, cap baris listing bulk, dan bentuk respons (field di luar deklarasi dibuang). Semua data uji fiktif; jangan pernah menaruh NIM atau nama mahasiswa asli di repo ini.
+Test ini menjaga kontrak API: exact-match NIM, re-check detail, kandidat ambigu, tabel error mapping, API key, rate limit, CORS, passthrough mirror route, whitelist path, cap baris listing bulk, dan bentuk respons (field di luar deklarasi dibuang). Semua data uji fiktif; jangan pernah menaruh NIM atau nama mahasiswa asli di repo ini.
 
 ## Spesifikasi API
 

@@ -192,7 +192,7 @@ def test_search_min_query_len():
 
 
 def test_declared_fields_only():
-    """Extra upstream fields must not leak: the Go structs decide the shape."""
+    """Extra upstream fields must not leak: the declared field list decides the shape."""
 
     def handler(request):
         if "/pencarian/mhs/" in request.url.path:
@@ -255,7 +255,8 @@ def test_api_key():
 
 def test_cors():
     # ponytail: Starlette answers preflight with 200 (and needs
-    # Access-Control-Request-Method); the Go service used 204 for any OPTIONS.
+    # Access-Control-Request-Method); returning 204 for any OPTIONS would be a
+    # behaviour change for clients that send no preflight headers.
     preflight = {"Origin": "https://a.example", "Access-Control-Request-Method": "GET"}
     resp = call(make_app(StubClient()), "OPTIONS", "/api/verify", headers=preflight)
     assert resp.status_code == 200, resp.status_code
@@ -280,6 +281,17 @@ def test_rate_limit():
     spoofed = call(app, "GET", "/api/verify/1", headers={"X-Forwarded-For": "203.0.113.9"})
     assert spoofed.status_code == 429
     assert call(app, "GET", "/health").status_code == 200
+
+
+def test_rate_limit_reads_x_real_ip_behind_trusted_proxy():
+    """Nginx sets X-Real-IP by default; without it every client shares one bucket."""
+
+    app = make_app(StubClient(detail=active_student()), rate_per_minute=2, trusted_proxies=["127.0.0.1"])
+    first = {"X-Real-IP": "203.0.113.1"}
+    assert call(app, "GET", "/api/verify/1", headers=first).status_code == 200
+    assert call(app, "GET", "/api/verify/1", headers=first).status_code == 200
+    assert call(app, "GET", "/api/verify/1", headers=first).status_code == 429
+    assert call(app, "GET", "/api/verify/1", headers={"X-Real-IP": "203.0.113.2"}).status_code == 200
 
 
 def test_mirrored_route_passthrough():
