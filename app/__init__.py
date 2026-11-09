@@ -1,0 +1,1 @@
+"""FastAPI port of auth-pddikti (see ../internal for the Go reference)."""
