@@ -191,6 +191,61 @@ def test_search_min_query_len():
     assert resp.status_code == 200 and body(resp)["total"] == 1, resp.text
 
 
+def test_declared_fields_only():
+    """Extra upstream fields must not leak: the Go structs decide the shape."""
+
+    def handler(request):
+        if "/pencarian/mhs/" in request.url.path:
+            return httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "id": "x",
+                            "nim": "23010000001",
+                            "nama": "CONTOH MAHASISWA",
+                            "nama_pt": "Universitas Contoh",
+                            "sinkatan_pt": "UC",
+                            "nama_prodi": "TEKNIK INFORMATIKA",
+                            "nim_asal": "bocor",
+                            "extra": 1,
+                        },
+                        {"id": "y", "nim": "23010000002", "nama": 12345},
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "data": {
+                    "id": "x",
+                    "nim": "23010000001",
+                    "nama": "CONTOH MAHASISWA",
+                    "nama_pt": "Universitas Contoh",
+                    "kode_pt": "001001",
+                    "kode_prodi": "55201",
+                    "prodi": "TEKNIK INFORMATIKA",
+                    "jenis_daftar": "UMUM",
+                    "id_pt": "p1",
+                    "id_sms": "s1",
+                    "jenis_kelamin": "L",
+                    "jenjang": "Sarjana",
+                    "status_saat_ini": "Aktif-2026/2027 Ganjil",
+                    "tanggal_masuk": "2023-08-15",
+                    "nik": "bocor",
+                    "extra": 1,
+                }
+            },
+        )
+
+    client = pddikti.Client(transport=httpx.MockTransport(handler))
+    rows = asyncio.run(client.search("23010000001"))
+    assert set(rows[0]) == set(pddikti.SEARCH_FIELDS), sorted(rows[0])
+    assert rows[1]["nama"] == "", "non-string field must be coerced, not leaked"
+    detail = asyncio.run(client.get_detail("x"))
+    assert set(detail) == set(pddikti.DETAIL_FIELDS), sorted(detail)
+
+
 def test_api_key():
     app = make_app(StubClient(detail=active_student()), api_key="secret")
     assert call(app, "GET", "/api/verify/1").status_code == 401

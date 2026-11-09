@@ -5,6 +5,7 @@ from __future__ import annotations
 import hmac
 import ipaddress
 import json
+import threading
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -78,8 +79,9 @@ class Config:
 class IPRateLimiter:
     """Per-IP token bucket. Idle entries are swept so memory stays bounded.
 
-    ponytail: no lock — every call is synchronous inside one event loop, so it is
-    atomic. Add a threading.Lock if this is ever driven from several loops.
+    State is per process, exactly like the Go service's in-process map: running
+    several uvicorn workers gives each its own counter. The lock guards the
+    threadpool path (a sync endpoint), not the event loop.
     """
 
     def __init__(self, per_minute: int, now: Callable[[], float] = time.monotonic) -> None:
@@ -88,8 +90,13 @@ class IPRateLimiter:
         self._buckets: dict[str, list[float]] = {}  # ip -> [tokens, last_refill, last_seen]
         self._now = now
         self._last_sweep = 0.0
+        self._lock = threading.Lock()
 
     def allow(self, ip: str) -> bool:
+        with self._lock:
+            return self._allow(ip)
+
+    def _allow(self, ip: str) -> bool:
         now = self._now()
         if now - self._last_sweep > SWEEP_EVERY:
             self._buckets = {k: v for k, v in self._buckets.items() if now - v[2] <= IDLE_TTL}

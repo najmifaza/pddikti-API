@@ -25,6 +25,25 @@ HEADERS = {
     "Accept": "application/json, text/plain, */*",
 }
 
+# Fields the API emits, mirroring the Go structs. Anything else upstream sends is dropped.
+SEARCH_FIELDS = ("id", "nama", "nim", "nama_pt", "sinkatan_pt", "nama_prodi")
+DETAIL_FIELDS = (
+    "id",
+    "nama_pt",
+    "kode_pt",
+    "kode_prodi",
+    "prodi",
+    "nama",
+    "nim",
+    "jenis_daftar",
+    "id_pt",
+    "id_sms",
+    "jenis_kelamin",
+    "jenjang",
+    "status_saat_ini",
+    "tanggal_masuk",
+)
+
 
 class PddiktiError(Exception):
     """Base error: carries the HTTP status and the stable `code` slug."""
@@ -135,7 +154,7 @@ class Client:
         except NotFound:
             return []
         rows = data.get("data")
-        return rows if isinstance(rows, list) else []
+        return [_pick(row, SEARCH_FIELDS) for row in (rows if isinstance(rows, list) else [])]
 
     async def get_detail(self, encrypted_id: str) -> dict[str, Any]:
         encrypted_id = encrypted_id.strip()
@@ -146,7 +165,7 @@ class Client:
         detail = detail if isinstance(detail, dict) else {}
         if not _str(detail.get("id")).strip() and not _str(detail.get("nim")).strip():
             raise NotFound()
-        return detail
+        return _pick(detail, DETAIL_FIELDS)
 
     async def verify_nim(self, nim: str, campus: str = "") -> dict[str, Any]:
         """Find the student whose NIM matches exactly; never fall back to fuzzy."""
@@ -208,6 +227,12 @@ def _matches_campus(item: dict[str, Any], campus: str) -> bool:
     singkatan = _str(item.get("sinkatan_pt")).strip().upper()
     nama = _str(item.get("nama_pt")).strip().upper()
     return (singkatan != "" and singkatan == campus) or campus in nama
+
+
+def _pick(item: Any, fields: tuple[str, ...]) -> dict[str, str]:
+    """Keep the declared fields only, the way Go unmarshals into a struct."""
+    row = item if isinstance(item, dict) else {}
+    return {name: _str(row.get(name)) for name in fields}
 
 
 def _str(value: Any) -> str:

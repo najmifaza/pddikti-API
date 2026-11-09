@@ -42,6 +42,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8090
 
 Di balik Nginx, teruskan `X-Forwarded-For` atau `X-Real-IP` dan isi `TRUSTED_PROXIES` agar rate limit membaca IP klien yang benar, bukan IP proxy.
 
+Rate limit disimpan per proses, jadi jalankan uvicorn dengan satu worker (`--workers 1`, default). Dengan beberapa worker, setiap worker punya hitungannya sendiri — sama seperti versi Go yang menyimpan hitungan di memori proses.
+
 ### Konfigurasi
 
 Semua variabel opsional. Contoh lengkap ada di [.env.example](.env.example).
@@ -75,7 +77,13 @@ Test memakai upstream tiruan (`httpx.MockTransport` dan stub client) serta data 
 python tests/test_api.py
 ```
 
-Test ini menjaga parity dengan versi Go: exact-match NIM, re-check detail, kandidat ambigu, tabel error mapping, API key, rate limit, CORS, passthrough mirror route, whitelist path, dan cap baris listing bulk. Semua data uji fiktif; jangan pernah menaruh NIM atau nama mahasiswa asli di repo ini.
+Cek live terhadap PDDIKTI asli dipisah dan hanya berjalan bila environment diisi. Data uji diberikan lewat environment variable agar tak ada data pribadi masuk repo:
+
+```bash
+PDDIKTI_TEST_NIM=<nim-anda> PDDIKTI_TEST_KAMPUS=<nama-pt> python tests/live_test.py
+```
+
+Test ini menjaga parity dengan versi Go: exact-match NIM, re-check detail, kandidat ambigu, tabel error mapping, API key, rate limit, CORS, passthrough mirror route, whitelist path, cap baris listing bulk, dan bentuk respons (field di luar deklarasi dibuang). Semua data uji fiktif; jangan pernah menaruh NIM atau nama mahasiswa asli di repo ini.
 
 ## Spesifikasi API
 
