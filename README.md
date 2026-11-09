@@ -55,7 +55,9 @@ Semua variabel opsional. Contoh lengkap ada di [.env.example](.env.example). Fil
 | `CORS_ORIGINS` | kosong (`*`) | Daftar origin yang diizinkan, dipisah koma |
 | `RATE_LIMIT_PER_MINUTE` | `30` | Batas request `/api/*` per IP klien per menit (`0` = nonaktif) |
 | `SEARCH_MIN_QUERY_LEN` | `3` | Panjang minimal parameter `q` pada `/api/search` |
-| `TRUSTED_PROXIES` | kosong | IP/CIDR reverse proxy yang dipercaya untuk `X-Forwarded-For`. Isi jika layanan berada di balik proxy, agar rate limit membaca IP klien yang benar |
+| `TRUSTED_PROXIES` | kosong | IP/CIDR reverse proxy yang dipercaya untuk `X-Forwarded-For` / `X-Real-IP`. Isi jika layanan berada di balik proxy, agar rate limit membaca IP klien yang benar |
+| `PDDIKTI_COOKIE` | kosong | Sesi upstream untuk semua request ke PDDIKTI (nilai header `Cookie` mentah). Kosong = request anonim |
+| `PDDIKTI_USER_AGENT` | UA peramban bawaan | `User-Agent` yang dikirim ke PDDIKTI |
 
 ## Dokumentasi API
 
@@ -255,6 +257,8 @@ Listing besar:
 | `/api/prodi/search/filter` | upstream mengabaikan `limit`; respons dipotong ke 50 baris |
 
 Path di luar daftar ini tidak pernah diteruskan ke PDDIKTI dan dijawab `404`.
+
+Sesi upstream dapat dititipkan per request pada route mirror: header `X-PDDIKTI-Cookie` (atau `Cookie`) dari klien diteruskan sebagai `Cookie` ke PDDIKTI, menimpa `PDDIKTI_COOKIE` untuk request itu saja. Nilai `PDDIKTI_COOKIE` layanan sendiri tetap dipakai bila klien tidak mengirim header tersebut.
 
 ## Format Error
 

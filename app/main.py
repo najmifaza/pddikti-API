@@ -42,7 +42,12 @@ def create_app(client: pddikti.Client | None = None, cfg: api.Config | None = No
         min_query_len=_env_int("SEARCH_MIN_QUERY_LEN", 3),
         trusted_proxies=_list("TRUSTED_PROXIES"),
     )
-    return api.build_app(client or pddikti.Client(timeout=10.0), cfg)
+    client = client or pddikti.Client(
+        timeout=10.0,
+        cookie=_env("PDDIKTI_COOKIE", ""),
+        user_agent=_env("PDDIKTI_USER_AGENT", ""),
+    )
+    return api.build_app(client, cfg)
 
 
 app = create_app()

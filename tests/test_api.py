@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -26,7 +27,7 @@ class StubClient:
         self.detail = detail
         self.raw = raw
         self.err = err
-        self.got_nim = self.got_campus = self.got_path = self.got_query = None
+        self.got_nim = self.got_campus = self.got_path = self.got_query = self.got_headers = None
 
     async def search(self, keyword):
         self.got_query = keyword
@@ -45,8 +46,8 @@ class StubClient:
             raise self.err
         return self.detail
 
-    async def fetch(self, path, raw_query=""):
-        self.got_path, self.got_query = path, raw_query
+    async def fetch(self, path, raw_query="", extra_headers=None):
+        self.got_path, self.got_query, self.got_headers = path, raw_query, extra_headers
         if self.err:
             raise self.err
         return self.raw if self.raw is not None else b'{"status":"success","data":[]}'
@@ -308,6 +309,51 @@ def test_mirrored_route_passthrough():
     legacy = make_app(StubClient(detail=active_student()))
     assert call(legacy, "GET", "/api/detail/mhs/id-a").status_code == 200
     assert call(legacy, "GET", "/api/verify/23010000001").status_code == 200
+
+
+def test_mirror_forwards_client_cookie():
+    stub = StubClient()
+    app = make_app(stub)
+    for header, expected in (
+        ({"X-PDDIKTI-Cookie": "session=abc"}, {"Cookie": "session=abc"}),
+        ({"Cookie": "a=1"}, {"Cookie": "a=1"}),
+    ):
+        assert call(app, "GET", "/api/pencarian/mhs/budi", headers=header).status_code == 200
+        assert stub.got_headers == expected, (header, stub.got_headers)
+
+    # X-PDDIKTI-Cookie wins over a plain Cookie header.
+    call(app, "GET", "/api/pencarian/mhs/budi", headers={"X-PDDIKTI-Cookie": "x=1", "Cookie": "y=2"})
+    assert stub.got_headers == {"Cookie": "x=1"}, stub.got_headers
+
+    assert call(app, "GET", "/api/pencarian/mhs/budi").status_code == 200
+    assert stub.got_headers is None, stub.got_headers
+
+
+def test_client_cookie_and_user_agent():
+    seen = {}
+
+    def handler(request):
+        seen["cookie"] = request.headers.get("cookie")
+        seen["agent"] = request.headers.get("user-agent")
+        return httpx.Response(200, json={"data": []})
+
+    os.environ["PDDIKTI_COOKIE"] = "env-cookie"
+    os.environ["PDDIKTI_USER_AGENT"] = "env-agent"
+    try:
+        client = pddikti.Client(transport=httpx.MockTransport(handler))
+        asyncio.run(client.search("budi"))
+        assert seen == {"cookie": "env-cookie", "agent": "env-agent"}, seen
+
+        client = pddikti.Client(transport=httpx.MockTransport(handler), cookie="explicit", user_agent="agent-x")
+        asyncio.run(client.search("budi"))
+        assert seen == {"cookie": "explicit", "agent": "agent-x"}, seen
+
+        # Per-call headers override what the client carries.
+        asyncio.run(client.fetch("/pencarian/mhs/budi", "", extra_headers={"Cookie": "dynamic"}))
+        assert seen["cookie"] == "dynamic", seen
+    finally:
+        del os.environ["PDDIKTI_COOKIE"]
+        del os.environ["PDDIKTI_USER_AGENT"]
 
 
 def test_unknown_paths_stay_404():

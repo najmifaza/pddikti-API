@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 from urllib.parse import quote
 
@@ -111,17 +112,32 @@ class Client:
         base_url: str = BASE_URL,
         timeout: float = DEFAULT_TIMEOUT,
         transport: httpx.AsyncBaseTransport | None = None,
+        cookie: str | None = None,
+        user_agent: str | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
-        self._http = httpx.AsyncClient(timeout=timeout, headers=HEADERS, transport=transport)
+        self.cookie = cookie if cookie is not None else _env("PDDIKTI_COOKIE")
+        headers = dict(HEADERS)
+        agent = user_agent if user_agent is not None else _env("PDDIKTI_USER_AGENT")
+        if agent:
+            headers["User-Agent"] = agent
+        if self.cookie:
+            headers["Cookie"] = self.cookie
+        self._http = httpx.AsyncClient(timeout=timeout, headers=headers, transport=transport)
 
     async def aclose(self) -> None:
         await self._http.aclose()
 
-    async def _fetch(self, path: str, raw_query: str = "", bad_request: type[PddiktiError] = NotFound) -> bytes:
+    async def _fetch(
+        self,
+        path: str,
+        raw_query: str = "",
+        bad_request: type[PddiktiError] = NotFound,
+        extra_headers: dict[str, str] | None = None,
+    ) -> bytes:
         url = self.base_url + path + (f"?{raw_query}" if raw_query else "")
         try:
-            resp = await self._http.get(url)
+            resp = await self._http.get(url, headers=extra_headers or None)
         except httpx.TimeoutException:
             raise UpstreamTimeout() from None
         except httpx.HTTPError as exc:
@@ -199,11 +215,11 @@ class Client:
             raise NotFound()
         return detail
 
-    async def fetch(self, path: str, raw_query: str = "") -> bytes:
+    async def fetch(self, path: str, raw_query: str = "", extra_headers: dict[str, str] | None = None) -> bytes:
         """Mirror an upstream endpoint and return its JSON untouched."""
         if not valid_upstream_path(path):
             raise InvalidPath()
-        return await self._fetch(path, raw_query, NotFound)
+        return await self._fetch(path, raw_query, bad_request=NotFound, extra_headers=extra_headers)
 
 
 def is_active(detail: dict[str, Any]) -> bool:
@@ -233,6 +249,10 @@ def _pick(item: Any, fields: tuple[str, ...]) -> dict[str, str]:
     """Keep the declared fields only, dropping everything else upstream sends."""
     row = item if isinstance(item, dict) else {}
     return {name: _str(row.get(name)) for name in fields}
+
+
+def _env(name: str) -> str:
+    return os.getenv(name, "").strip()
 
 
 def _str(value: Any) -> str:

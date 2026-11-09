@@ -179,7 +179,7 @@ def build_app(client: pddikti.Client, cfg: Config) -> FastAPI:
         CORSMiddleware,
         allow_origins=["*"] if allow_all else origin_list,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", "X-API-Key"],
+        allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-PDDIKTI-Cookie", "X-PDDIKTI-User-Agent", "Cookie"],
     )
 
     @app.exception_handler(pddikti.PddiktiError)
@@ -281,7 +281,13 @@ def _mirror(client: pddikti.Client, row_cap: int) -> Callable[[Request], Awaitab
         # raw_path keeps the client's own percent-encoding; /api is ours.
         raw = request.scope.get("raw_path")
         path = (raw.decode() if raw else request.url.path)[len("/api") :]
-        body = await client.fetch(path, request.scope["query_string"].decode())
+        # Browsers cannot set Cookie from JS, so X-PDDIKTI-Cookie is the practical path.
+        cookie = request.headers.get("x-pddikti-cookie") or request.headers.get("cookie", "")
+        body = await client.fetch(
+            path,
+            request.scope["query_string"].decode(),
+            extra_headers={"Cookie": cookie} if cookie else None,
+        )
         if row_cap:
             body = cap_rows(body, row_cap)
         return Response(body, media_type="application/json; charset=utf-8")
